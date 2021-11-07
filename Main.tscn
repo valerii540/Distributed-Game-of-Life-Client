@@ -1,5 +1,6 @@
-[gd_scene load_steps=9 format=2]
+[gd_scene load_steps=15 format=2]
 
+[ext_resource path="res://MasterStyle.tres" type="StyleBox" id=1]
 [ext_resource path="res://src/Connect.gd" type="Script" id=2]
 [ext_resource path="res://Main.gd" type="Script" id=3]
 [ext_resource path="res://Journal.gd" type="Script" id=4]
@@ -35,23 +36,136 @@ func set_online() -> void:
 
 func set_offline() -> void:
     self[\"custom_styles/disabled\"].bg_color = Color.red
+
+
+func is_online() -> bool:
+    return self[\"custom_styles/disabled\"].bg_color == Color.green
 "
 
-[sub_resource type="StyleBoxFlat" id=5]
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color( 0, 0, 0, 1 )
-
-[sub_resource type="GDScript" id=9]
+[sub_resource type="GDScript" id=10]
 script/source = "extends Label
 
 
-func _ready():
-    add_color_override(\"font_color\", Color.black)
-    self[\"custom_styles/normal\"].bg_color = Color.gray
+func change_cluster_status(to: String) -> void:
+    text = \"Cluster status: %s\" % to
+"
 
+[sub_resource type="GDScript" id=11]
+script/source = "extends Label
+
+
+func set_iteration(to: int) -> void:
+    text = \"Iteration: %d\" % to
+"
+
+[sub_resource type="GDScript" id=12]
+script/source = "extends Label
+
+
+func set_mode(to: String) -> void:
+    text = \"Mode: %s\" % to
+"
+
+[sub_resource type="GDScript" id=9]
+script/source = "extends Button
+
+enum Master_Status {UNKNOWN, CONNECTED}
+
+var _status = Master_Status.UNKNOWN
+
+func _ready():
+    change_status(Master_Status.UNKNOWN)
+
+func change_status(to) -> void:
+    _status = to
+    match to:
+        Master_Status.UNKNOWN:
+            self[\"custom_styles/disabled\"].bg_color = Color.gray
+        Master_Status.CONNECTED:
+            self[\"custom_styles/disabled\"].bg_color = Color.darkseagreen
+"
+
+[sub_resource type="GDScript" id=13]
+script/source = "extends Button
+
+
+func _on_Start_pressed() -> void:
+    get_node(\"../InitDialog\").popup()
+"
+
+[sub_resource type="GDScript" id=14]
+script/source = "extends ConfirmationDialog
+
+
+onready var _url: Label = get_node(\"/root/Node2D/VBoxContainer/Toolbar/URL\")
+onready var _mode: OptionButton = get_node(\"GridContainer/ModeButton\")
+onready var _life_factor: LineEdit = get_node(\"GridContainer/LifeFactorField\")
+onready var _height: LineEdit = get_node(\"GridContainer/HBoxContainer/Height\")
+onready var _width: LineEdit = get_node(\"GridContainer/HBoxContainer/Width\")
+onready var _journal: Journal = get_node(\"/root/Node2D/VBoxContainer/VSplitContainer/Journal\")
+
+var _http = HTTPRequest.new()
+
+const INIT_ROUTE = \"/simulation/init\"
+
+func _ready() -> void:
+    _http.connect(\"request_completed\", self, \"_request_conmpleted\")
+    add_child(_http)
+
+func _on_confirmed() -> void:
+    if _url.text != \"DISCONNECTED\":
+        var payload = {
+            \"mode\": _mode.text,
+            \"lifeFactor\": float(_life_factor.text),
+            \"preferredFieldSize\": {
+                \"height\": int(_height.text),
+                \"width\": int(_width.text)
+            },
+            \"forceDistribution\": false
+        }
+        var json_payload = JSON.print(payload)
+        var headers = [\"Content-Type: application/json\"]
+        _http.request(_url.text + INIT_ROUTE, headers, false, HTTPClient.METHOD_POST, json_payload)
+    else:
+        _journal.error(\"You need to connect to a cluster first\")
+
+func _request_conmpleted(result, response_code, headers, body) -> void:
+    if response_code != 200:
+        _journal.error(\"Start failure: status %d, response %s\" % [response_code, body])
+    else:
+        _journal.record(\"Successfully initialized new simulation\")
+
+
+"
+
+[sub_resource type="GDScript" id=15]
+script/source = "extends Button
+
+
+onready var _url: Label = get_node(\"/root/Node2D/VBoxContainer/Toolbar/URL\")
+onready var _journal: Journal = get_node(\"/root/Node2D/VBoxContainer/VSplitContainer/Journal\")
+
+var _http = HTTPRequest.new()
+
+const RESET_ROUTE = \"/simulation/reset\"
+
+func _ready() -> void:
+    _http.connect(\"request_completed\", self, \"_request_completed\")
+    add_child(_http)
+
+
+func _on_Reset_pressed() -> void:
+    if _url.text == \"DISCONNECTED\":
+        _journal.error(\"You need to connect to a cluster first\")
+    else:
+        _http.request(_url.text + RESET_ROUTE, [], false, HTTPClient.METHOD_PATCH)
+
+
+func _request_completed(result, response_code, headers, body) -> void:
+    if response_code != 200:
+        _journal.error(\"Reset failure: status %d, response %s\" % [response_code, body])
+    else:
+        _journal.record(\"Cluster successfully resetted\")
 "
 
 [node name="Node2D" type="Control"]
@@ -77,7 +191,6 @@ margin_bottom = 20.0
 margin_right = 64.0
 margin_bottom = 20.0
 text = "Connect"
-flat = true
 script = ExtResource( 2 )
 
 [node name="ConnectDialog" type="WindowDialog" parent="VBoxContainer/Toolbar"]
@@ -85,7 +198,6 @@ margin_left = 68.0
 margin_right = 468.0
 margin_bottom = 200.0
 rect_min_size = Vector2( 400, 200 )
-popup_exclusive = true
 window_title = "Connection Dialog"
 resizable = true
 
@@ -164,12 +276,51 @@ margin_left = 100.0
 margin_right = 104.0
 margin_bottom = 20.0
 
-[node name="ClusterStatus" type="Label" parent="VBoxContainer/Toolbar"]
+[node name="URL" type="Label" parent="VBoxContainer/Toolbar"]
 margin_left = 108.0
 margin_top = 3.0
-margin_right = 261.0
+margin_right = 208.0
+margin_bottom = 17.0
+text = "DISCONNECTED"
+
+[node name="VSeparator5" type="VSeparator" parent="VBoxContainer/Toolbar"]
+margin_left = 212.0
+margin_right = 216.0
+margin_bottom = 20.0
+
+[node name="ClusterStatus" type="Label" parent="VBoxContainer/Toolbar"]
+margin_left = 220.0
+margin_top = 3.0
+margin_right = 373.0
 margin_bottom = 17.0
 text = "Cluster status: unknown"
+script = SubResource( 10 )
+
+[node name="VSeparator3" type="VSeparator" parent="VBoxContainer/Toolbar"]
+margin_left = 377.0
+margin_right = 381.0
+margin_bottom = 20.0
+
+[node name="Iteration" type="Label" parent="VBoxContainer/Toolbar"]
+margin_left = 385.0
+margin_top = 3.0
+margin_right = 454.0
+margin_bottom = 17.0
+text = "Iteration: ?"
+script = SubResource( 11 )
+
+[node name="VSeparator4" type="VSeparator" parent="VBoxContainer/Toolbar"]
+margin_left = 458.0
+margin_right = 462.0
+margin_bottom = 20.0
+
+[node name="Mode" type="Label" parent="VBoxContainer/Toolbar"]
+margin_left = 466.0
+margin_top = 3.0
+margin_right = 516.0
+margin_bottom = 17.0
+text = "Mode: ?"
+script = SubResource( 12 )
 
 [node name="HSeparator" type="HSeparator" parent="VBoxContainer"]
 margin_top = 24.0
@@ -191,74 +342,171 @@ __meta__ = {
 "_edit_use_anchors_": false
 }
 
-[node name="ClusterView" type="VBoxContainer" parent="VBoxContainer/VSplitContainer/HBoxContainer"]
-margin_right = 792.0
+[node name="Tabs" type="TabContainer" parent="VBoxContainer/VSplitContainer/HBoxContainer"]
+margin_right = 848.0
 margin_bottom = 570.0
 size_flags_horizontal = 3
-size_flags_vertical = 3
-size_flags_stretch_ratio = 2.0
+tab_align = 0
 
-[node name="MasterNode" type="Label" parent="VBoxContainer/VSplitContainer/HBoxContainer/ClusterView"]
-margin_left = 321.0
-margin_right = 471.0
-margin_bottom = 75.0
-rect_min_size = Vector2( 150, 75 )
+[node name="Cluster" type="VBoxContainer" parent="VBoxContainer/VSplitContainer/HBoxContainer/Tabs"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = 4.0
+margin_top = 32.0
+margin_right = -4.0
+margin_bottom = -4.0
+
+[node name="MasterNode" type="Button" parent="VBoxContainer/VSplitContainer/HBoxContainer/Tabs/Cluster"]
+margin_left = 345.0
+margin_right = 495.0
+margin_bottom = 70.0
+rect_min_size = Vector2( 150, 70 )
+focus_mode = 0
 size_flags_horizontal = 4
 size_flags_vertical = 0
-custom_styles/normal = SubResource( 5 )
-text = "MASTER"
-align = 1
-valign = 1
+custom_colors/font_color_disabled = Color( 0, 0, 0, 1 )
+custom_styles/disabled = ExtResource( 1 )
+disabled = true
+text = "Master"
 script = SubResource( 9 )
 
-[node name="WorkersContainer" type="GridContainer" parent="VBoxContainer/VSplitContainer/HBoxContainer/ClusterView"]
-margin_top = 79.0
-margin_right = 792.0
-margin_bottom = 570.0
-size_flags_horizontal = 3
+[node name="HSeparator" type="HSeparator" parent="VBoxContainer/VSplitContainer/HBoxContainer/Tabs/Cluster"]
+margin_top = 74.0
+margin_right = 840.0
+margin_bottom = 78.0
+
+[node name="Workers" type="GridContainer" parent="VBoxContainer/VSplitContainer/HBoxContainer/Tabs/Cluster"]
+margin_top = 82.0
+margin_right = 840.0
+margin_bottom = 534.0
 size_flags_vertical = 3
 columns = 3
 
+[node name="Charts" type="VBoxContainer" parent="VBoxContainer/VSplitContainer/HBoxContainer/Tabs"]
+visible = false
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = 4.0
+margin_top = 32.0
+margin_right = -4.0
+margin_bottom = -4.0
+
 [node name="VSeparator" type="VSeparator" parent="VBoxContainer/VSplitContainer/HBoxContainer"]
-margin_left = 796.0
-margin_right = 800.0
+margin_left = 852.0
+margin_right = 856.0
 margin_bottom = 570.0
 
 [node name="ControlPanel" type="VBoxContainer" parent="VBoxContainer/VSplitContainer/HBoxContainer"]
-margin_left = 804.0
+margin_left = 860.0
 margin_right = 1200.0
 margin_bottom = 570.0
 size_flags_horizontal = 3
 size_flags_vertical = 3
+size_flags_stretch_ratio = 0.4
 
 [node name="Start" type="Button" parent="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel"]
-margin_right = 396.0
+margin_right = 340.0
 margin_bottom = 75.0
 rect_min_size = Vector2( 0, 75 )
-disabled = true
 text = "START"
+script = SubResource( 13 )
+
+[node name="InitDialog" type="ConfirmationDialog" parent="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel"]
+margin_top = 79.0
+margin_right = 340.0
+margin_bottom = 279.0
+rect_min_size = Vector2( 200, 200 )
+script = SubResource( 14 )
+
+[node name="GridContainer" type="GridContainer" parent="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/InitDialog"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+margin_left = 8.0
+margin_top = 8.0
+margin_right = -8.0
+margin_bottom = -36.0
+size_flags_vertical = 3
+columns = 2
+__meta__ = {
+"_edit_use_anchors_": false
+}
+
+[node name="Mode" type="Label" parent="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/InitDialog/GridContainer"]
+margin_top = 3.0
+margin_right = 160.0
+margin_bottom = 17.0
+size_flags_horizontal = 3
+text = "Mode*"
+
+[node name="ModeButton" type="OptionButton" parent="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/InitDialog/GridContainer"]
+margin_left = 164.0
+margin_right = 324.0
+margin_bottom = 20.0
+size_flags_horizontal = 3
+text = "Manual"
+items = [ "Manual", null, false, 0, null, "Fastest", null, false, 1, null, "SoftTimed", null, false, 2, null ]
+selected = 0
+
+[node name="LifeFactor" type="Label" parent="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/InitDialog/GridContainer"]
+margin_top = 29.0
+margin_right = 160.0
+margin_bottom = 43.0
+text = "Life factor*"
+
+[node name="LifeFactorField" type="LineEdit" parent="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/InitDialog/GridContainer"]
+margin_left = 164.0
+margin_top = 24.0
+margin_right = 324.0
+margin_bottom = 48.0
+placeholder_text = "from 0.0 to 1.0"
+
+[node name="Size" type="Label" parent="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/InitDialog/GridContainer"]
+margin_top = 57.0
+margin_right = 160.0
+margin_bottom = 71.0
+text = "Field size"
+
+[node name="HBoxContainer" type="HBoxContainer" parent="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/InitDialog/GridContainer"]
+margin_left = 164.0
+margin_top = 52.0
+margin_right = 324.0
+margin_bottom = 76.0
+
+[node name="Height" type="LineEdit" parent="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/InitDialog/GridContainer/HBoxContainer"]
+margin_right = 78.0
+margin_bottom = 24.0
+size_flags_horizontal = 3
+placeholder_text = "Height"
+
+[node name="Width" type="LineEdit" parent="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/InitDialog/GridContainer/HBoxContainer"]
+margin_left = 82.0
+margin_right = 160.0
+margin_bottom = 24.0
+size_flags_horizontal = 3
+placeholder_text = "Width"
 
 [node name="HBoxContainer" type="HBoxContainer" parent="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel"]
 margin_top = 79.0
-margin_right = 396.0
+margin_right = 340.0
 margin_bottom = 129.0
 
-[node name="Pause" type="Button" parent="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/HBoxContainer"]
-margin_right = 196.0
+[node name="Next" type="Button" parent="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/HBoxContainer"]
+margin_right = 168.0
 margin_bottom = 50.0
 rect_min_size = Vector2( 0, 50 )
 size_flags_horizontal = 3
-disabled = true
-text = "Pause"
+text = "Next"
 
-[node name="Stop" type="Button" parent="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/HBoxContainer"]
-margin_left = 200.0
-margin_right = 396.0
+[node name="Reset" type="Button" parent="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/HBoxContainer"]
+margin_left = 172.0
+margin_right = 340.0
 margin_bottom = 50.0
 rect_min_size = Vector2( 0, 50 )
 size_flags_horizontal = 3
-disabled = true
-text = "STOP"
+custom_colors/font_color = Color( 1, 0, 0, 1 )
+custom_colors/font_color_hover = Color( 1, 0, 0, 1 )
+text = "RESET"
+script = SubResource( 15 )
 
 [node name="Journal" type="TextEdit" parent="VBoxContainer/VSplitContainer"]
 margin_top = 582.0
@@ -273,3 +521,6 @@ script = ExtResource( 4 )
 [connection signal="pressed" from="VBoxContainer/Toolbar/Connect" to="VBoxContainer/Toolbar/Connect" method="_on_Connect_pressed"]
 [connection signal="connect_command" from="VBoxContainer/Toolbar/ConnectDialog/VBoxContainer/Confirm" to="." method="_on_connect_command"]
 [connection signal="pressed" from="VBoxContainer/Toolbar/ConnectDialog/VBoxContainer/Confirm" to="VBoxContainer/Toolbar/ConnectDialog/VBoxContainer/Confirm" method="_on_Confirm_pressed"]
+[connection signal="pressed" from="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/Start" to="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/Start" method="_on_Start_pressed"]
+[connection signal="confirmed" from="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/InitDialog" to="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/InitDialog" method="_on_confirmed"]
+[connection signal="pressed" from="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/HBoxContainer/Reset" to="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/HBoxContainer/Reset" method="_on_Reset_pressed"]

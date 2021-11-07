@@ -13,9 +13,15 @@ _global_script_classes=[ {
 "class": "Journal",
 "language": "GDScript",
 "path": "res://Journal.gd"
+}, {
+"base": "Button",
+"class": "Worker",
+"language": "GDScript",
+"path": "res://Worker.gd"
 } ]
 _global_script_class_icons={
-"Journal": ""
+"Journal": "",
+"Worker": ""
 }
 
 [application]
