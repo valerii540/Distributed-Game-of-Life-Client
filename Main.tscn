@@ -1,9 +1,11 @@
-[gd_scene load_steps=15 format=2]
+[gd_scene load_steps=20 format=2]
 
 [ext_resource path="res://MasterStyle.tres" type="StyleBox" id=1]
 [ext_resource path="res://src/Connect.gd" type="Script" id=2]
 [ext_resource path="res://Main.gd" type="Script" id=3]
 [ext_resource path="res://Journal.gd" type="Script" id=4]
+[ext_resource path="res://addons/ChartGraph/assets/fonts/THSarabunNew.tres" type="DynamicFont" id=5]
+[ext_resource path="res://addons/ChartGraph/line_chart/line_chart.gd" type="Script" id=6]
 
 [sub_resource type="GDScript" id=6]
 script/source = "extends Button
@@ -56,6 +58,22 @@ script/source = "extends Label
 
 func set_iteration(to: int) -> void:
     text = \"Iteration: %d\" % to
+
+
+func clean() -> void:
+    text = \"Iteration: ?\"
+"
+
+[sub_resource type="GDScript" id=17]
+script/source = "extends Label
+
+
+func set_population(to: int) -> void:
+    text = \"Population: %d\" % to
+
+
+func clean() -> void:
+    text = \"Iteration: ?\"
 "
 
 [sub_resource type="GDScript" id=12]
@@ -83,6 +101,38 @@ func change_status(to) -> void:
             self[\"custom_styles/disabled\"].bg_color = Color.gray
         Master_Status.CONNECTED:
             self[\"custom_styles/disabled\"].bg_color = Color.darkseagreen
+"
+
+[sub_resource type="GDScript" id=16]
+script/source = "extends Control
+
+onready var chart_node = get_node('chart')
+
+var _iterations = {}
+
+func _ready():
+    chart_node.initialize(chart_node.LABELS_TO_SHOW.X_LABEL,
+    {
+        population = Color.pink,
+    })
+    chart_node.set_labels(14)
+    set_process(true)
+
+
+func _on_update_chart(iter, pop) -> void:
+    if not iter in _iterations:
+        _iterations[iter] = pop
+        chart_node.create_new_point({
+            label = str(iter),
+            values = {
+                population = pop
+            }
+        })
+
+
+func _on_clear_chart() -> void:
+    _iterations = {}
+    chart_node.self_clear_chart()
 "
 
 [sub_resource type="GDScript" id=13]
@@ -138,11 +188,45 @@ func _request_conmpleted(result, response_code, headers, body) -> void:
 
 "
 
+[sub_resource type="GDScript" id=18]
+script/source = "extends Button
+
+onready var _url: Label = get_node(\"/root/Node2D/VBoxContainer/Toolbar/URL\")
+onready var _journal: Journal = get_node(\"/root/Node2D/VBoxContainer/VSplitContainer/Journal\")
+
+var _http = HTTPRequest.new()
+
+const NEXT_ROUTE = \"/simulation/next\"
+
+
+func _ready() -> void:
+    _http.connect(\"request_completed\", self, \"_request_completed\")
+    add_child(_http)
+
+
+func _on_Next_pressed() -> void:
+    if _url.text == \"DISCONNECTED\":
+        _journal.error(\"You need to connect to a cluster first\")
+    else:
+        _http.request(_url.text + NEXT_ROUTE, [], false, HTTPClient.METHOD_PATCH)
+
+
+func _request_completed(result, response_code, headers, body) -> void:
+    if response_code != 200:
+        _journal.error(\"Next iteration failure: status %d, response %s\" % [response_code, body])
+    else:
+        _journal.record(\"Next iteration has been requested\")
+"
+
 [sub_resource type="GDScript" id=15]
 script/source = "extends Button
 
 
+signal clear_chart
+
 onready var _url: Label = get_node(\"/root/Node2D/VBoxContainer/Toolbar/URL\")
+onready var _iteration: Label = get_node(\"/root/Node2D/VBoxContainer/Toolbar/Iteration\")
+onready var _population: Label = get_node(\"/root/Node2D/VBoxContainer/Toolbar/Population\")
 onready var _journal: Journal = get_node(\"/root/Node2D/VBoxContainer/VSplitContainer/Journal\")
 
 var _http = HTTPRequest.new()
@@ -165,6 +249,9 @@ func _request_completed(result, response_code, headers, body) -> void:
     if response_code != 200:
         _journal.error(\"Reset failure: status %d, response %s\" % [response_code, body])
     else:
+        emit_signal(\"clear_chart\")
+        _iteration.clean()
+        _population.clean()
         _journal.record(\"Cluster successfully resetted\")
 "
 
@@ -198,7 +285,7 @@ margin_left = 68.0
 margin_right = 468.0
 margin_bottom = 200.0
 rect_min_size = Vector2( 400, 200 )
-window_title = "Connection Dialog"
+window_title = "Connection parameters"
 resizable = true
 
 [node name="VBoxContainer" type="VBoxContainer" parent="VBoxContainer/Toolbar/ConnectDialog"]
@@ -309,15 +396,28 @@ margin_bottom = 17.0
 text = "Iteration: ?"
 script = SubResource( 11 )
 
-[node name="VSeparator4" type="VSeparator" parent="VBoxContainer/Toolbar"]
+[node name="VSeparator6" type="VSeparator" parent="VBoxContainer/Toolbar"]
 margin_left = 458.0
 margin_right = 462.0
 margin_bottom = 20.0
 
-[node name="Mode" type="Label" parent="VBoxContainer/Toolbar"]
+[node name="Population" type="Label" parent="VBoxContainer/Toolbar"]
 margin_left = 466.0
 margin_top = 3.0
-margin_right = 516.0
+margin_right = 548.0
+margin_bottom = 17.0
+text = "Population: ?"
+script = SubResource( 17 )
+
+[node name="VSeparator4" type="VSeparator" parent="VBoxContainer/Toolbar"]
+margin_left = 552.0
+margin_right = 556.0
+margin_bottom = 20.0
+
+[node name="Mode" type="Label" parent="VBoxContainer/Toolbar"]
+margin_left = 560.0
+margin_top = 3.0
+margin_right = 610.0
 margin_bottom = 17.0
 text = "Mode: ?"
 script = SubResource( 12 )
@@ -349,6 +449,7 @@ size_flags_horizontal = 3
 tab_align = 0
 
 [node name="Cluster" type="VBoxContainer" parent="VBoxContainer/VSplitContainer/HBoxContainer/Tabs"]
+visible = false
 anchor_right = 1.0
 anchor_bottom = 1.0
 margin_left = 4.0
@@ -383,13 +484,30 @@ size_flags_vertical = 3
 columns = 3
 
 [node name="Charts" type="VBoxContainer" parent="VBoxContainer/VSplitContainer/HBoxContainer/Tabs"]
-visible = false
 anchor_right = 1.0
 anchor_bottom = 1.0
 margin_left = 4.0
 margin_top = 32.0
 margin_right = -4.0
 margin_bottom = -4.0
+
+[node name="PopulationChart" type="Control" parent="VBoxContainer/VSplitContainer/HBoxContainer/Tabs/Charts"]
+margin_right = 840.0
+margin_bottom = 534.0
+size_flags_vertical = 3
+script = SubResource( 16 )
+
+[node name="chart" type="ReferenceRect" parent="VBoxContainer/VSplitContainer/HBoxContainer/Tabs/Charts/PopulationChart"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+size_flags_vertical = 3
+script = ExtResource( 6 )
+__meta__ = {
+"_edit_use_anchors_": false
+}
+label_font = ExtResource( 5 )
+
+[node name="Tween" type="Tween" parent="VBoxContainer/VSplitContainer/HBoxContainer/Tabs/Charts/PopulationChart/chart"]
 
 [node name="VSeparator" type="VSeparator" parent="VBoxContainer/VSplitContainer/HBoxContainer"]
 margin_left = 852.0
@@ -416,6 +534,8 @@ margin_top = 79.0
 margin_right = 340.0
 margin_bottom = 279.0
 rect_min_size = Vector2( 200, 200 )
+window_title = "Simulation parameters"
+resizable = true
 script = SubResource( 14 )
 
 [node name="GridContainer" type="GridContainer" parent="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/InitDialog"]
@@ -496,6 +616,7 @@ margin_bottom = 50.0
 rect_min_size = Vector2( 0, 50 )
 size_flags_horizontal = 3
 text = "Next"
+script = SubResource( 18 )
 
 [node name="Reset" type="Button" parent="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/HBoxContainer"]
 margin_left = 172.0
@@ -518,9 +639,12 @@ virtual_keyboard_enabled = false
 caret_moving_by_right_click = false
 script = ExtResource( 4 )
 
+[connection signal="update_chart" from="." to="VBoxContainer/VSplitContainer/HBoxContainer/Tabs/Charts/PopulationChart" method="_on_update_chart"]
 [connection signal="pressed" from="VBoxContainer/Toolbar/Connect" to="VBoxContainer/Toolbar/Connect" method="_on_Connect_pressed"]
 [connection signal="connect_command" from="VBoxContainer/Toolbar/ConnectDialog/VBoxContainer/Confirm" to="." method="_on_connect_command"]
 [connection signal="pressed" from="VBoxContainer/Toolbar/ConnectDialog/VBoxContainer/Confirm" to="VBoxContainer/Toolbar/ConnectDialog/VBoxContainer/Confirm" method="_on_Confirm_pressed"]
 [connection signal="pressed" from="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/Start" to="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/Start" method="_on_Start_pressed"]
 [connection signal="confirmed" from="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/InitDialog" to="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/InitDialog" method="_on_confirmed"]
+[connection signal="pressed" from="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/HBoxContainer/Next" to="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/HBoxContainer/Next" method="_on_Next_pressed"]
+[connection signal="clear_chart" from="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/HBoxContainer/Reset" to="VBoxContainer/VSplitContainer/HBoxContainer/Tabs/Charts/PopulationChart" method="_on_clear_chart"]
 [connection signal="pressed" from="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/HBoxContainer/Reset" to="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/HBoxContainer/Reset" method="_on_Reset_pressed"]

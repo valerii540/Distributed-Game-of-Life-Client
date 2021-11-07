@@ -9,6 +9,16 @@
 config_version=4
 
 _global_script_classes=[ {
+"base": "ReferenceRect",
+"class": "CGChart",
+"language": "GDScript",
+"path": "res://addons/ChartGraph/core/chart.gd"
+}, {
+"base": "CGChart",
+"class": "CGLine",
+"language": "GDScript",
+"path": "res://addons/ChartGraph/line_chart/line_chart.gd"
+}, {
 "base": "TextEdit",
 "class": "Journal",
 "language": "GDScript",
@@ -20,13 +30,15 @@ _global_script_classes=[ {
 "path": "res://Worker.gd"
 } ]
 _global_script_class_icons={
+"CGChart": "",
+"CGLine": "",
 "Journal": "",
 "Worker": ""
 }
 
 [application]
 
-config/name="distributed-game-of-life-client"
+config/name="Game Of Life Client"
 run/main_scene="res://Main.tscn"
 config/icon="res://icon.png"
 

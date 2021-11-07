@@ -1,5 +1,7 @@
 extends Node
 
+signal update_chart(iteration, population)
+
 const STATUS_ROUTE = "/cluster/status"
 
 var _http_client  = HTTPRequest.new()
@@ -10,6 +12,7 @@ onready var _connected_icon: Button = get_node("VBoxContainer/Toolbar/ConnectedI
 onready var _url: Label = get_node("VBoxContainer/Toolbar/URL")
 onready var _cluster_status_label: Label = get_node("VBoxContainer/Toolbar/ClusterStatus")
 onready var _iteration: Label = get_node("VBoxContainer/Toolbar/Iteration")
+onready var _population: Label = get_node("VBoxContainer/Toolbar/Population")
 onready var _mode: Label = get_node("VBoxContainer/Toolbar/Mode")
 onready var _master_node: Button = get_node("VBoxContainer/VSplitContainer/HBoxContainer/Tabs/Cluster/MasterNode")
 onready var _workers_grid: GridContainer = get_node("VBoxContainer/VSplitContainer/HBoxContainer/Tabs/Cluster/Workers")
@@ -53,8 +56,13 @@ func _on_cluster_status_received(result, response_code, headers, body):
                         _workers[worker["actor"]] = {"capabilities": worker["capabilities"]}
                     _refresh_grid()
             "Running":
-                _iteration.set_iteration(int(json["iteration"]))
-                _mode.set_mode(json["mode"])
+                var mode = json["mode"]
+                var iteration = int(json["iteration"])
+                var population = int(json["population"])
+                _iteration.set_iteration(iteration)
+                _population.set_population(population)
+                _mode.set_mode(mode)
+                emit_signal("update_chart", iteration, population)
                 if cluster_hash != _cluster_hash:
                     var workers = json["workers"]
                     for worker in workers:
