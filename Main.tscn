@@ -1,11 +1,9 @@
-[gd_scene load_steps=20 format=2]
+[gd_scene load_steps=17 format=2]
 
 [ext_resource path="res://MasterStyle.tres" type="StyleBox" id=1]
 [ext_resource path="res://src/Connect.gd" type="Script" id=2]
 [ext_resource path="res://Main.gd" type="Script" id=3]
 [ext_resource path="res://Journal.gd" type="Script" id=4]
-[ext_resource path="res://addons/ChartGraph/assets/fonts/THSarabunNew.tres" type="DynamicFont" id=5]
-[ext_resource path="res://addons/ChartGraph/line_chart/line_chart.gd" type="Script" id=6]
 
 [sub_resource type="GDScript" id=6]
 script/source = "extends Button
@@ -103,38 +101,6 @@ func change_status(to) -> void:
             self[\"custom_styles/disabled\"].bg_color = Color.darkseagreen
 "
 
-[sub_resource type="GDScript" id=16]
-script/source = "extends Control
-
-onready var chart_node = get_node('chart')
-
-var _iterations = {}
-
-func _ready():
-    chart_node.initialize(chart_node.LABELS_TO_SHOW.X_LABEL,
-    {
-        population = Color.pink,
-    })
-    chart_node.set_labels(14)
-    set_process(true)
-
-
-func _on_update_chart(iter, pop) -> void:
-    if not iter in _iterations:
-        _iterations[iter] = pop
-        chart_node.create_new_point({
-            label = str(iter),
-            values = {
-                population = pop
-            }
-        })
-
-
-func _on_clear_chart() -> void:
-    _iterations = {}
-    chart_node.self_clear_chart()
-"
-
 [sub_resource type="GDScript" id=13]
 script/source = "extends Button
 
@@ -152,6 +118,8 @@ onready var _mode: OptionButton = get_node(\"GridContainer/ModeButton\")
 onready var _life_factor: LineEdit = get_node(\"GridContainer/LifeFactorField\")
 onready var _height: LineEdit = get_node(\"GridContainer/HBoxContainer/Height\")
 onready var _width: LineEdit = get_node(\"GridContainer/HBoxContainer/Width\")
+onready var _writeStats: CheckBox = get_node(\"GridContainer/WriteStatsButton\")
+
 onready var _journal: Journal = get_node(\"/root/Node2D/VBoxContainer/VSplitContainer/Journal\")
 
 var _http = HTTPRequest.new()
@@ -167,6 +135,7 @@ func _on_confirmed() -> void:
         var payload = {
             \"mode\": _mode.text,
             \"lifeFactor\": float(_life_factor.text),
+            \"writeLogFile\": _writeStats.is_pressed(),
             \"preferredFieldSize\": {
                 \"height\": int(_height.text),
                 \"width\": int(_width.text)
@@ -449,7 +418,6 @@ size_flags_horizontal = 3
 tab_align = 0
 
 [node name="Cluster" type="VBoxContainer" parent="VBoxContainer/VSplitContainer/HBoxContainer/Tabs"]
-visible = false
 anchor_right = 1.0
 anchor_bottom = 1.0
 margin_left = 4.0
@@ -483,32 +451,6 @@ margin_bottom = 534.0
 size_flags_vertical = 3
 columns = 3
 
-[node name="Charts" type="VBoxContainer" parent="VBoxContainer/VSplitContainer/HBoxContainer/Tabs"]
-anchor_right = 1.0
-anchor_bottom = 1.0
-margin_left = 4.0
-margin_top = 32.0
-margin_right = -4.0
-margin_bottom = -4.0
-
-[node name="PopulationChart" type="Control" parent="VBoxContainer/VSplitContainer/HBoxContainer/Tabs/Charts"]
-margin_right = 840.0
-margin_bottom = 534.0
-size_flags_vertical = 3
-script = SubResource( 16 )
-
-[node name="chart" type="ReferenceRect" parent="VBoxContainer/VSplitContainer/HBoxContainer/Tabs/Charts/PopulationChart"]
-anchor_right = 1.0
-anchor_bottom = 1.0
-size_flags_vertical = 3
-script = ExtResource( 6 )
-__meta__ = {
-"_edit_use_anchors_": false
-}
-label_font = ExtResource( 5 )
-
-[node name="Tween" type="Tween" parent="VBoxContainer/VSplitContainer/HBoxContainer/Tabs/Charts/PopulationChart/chart"]
-
 [node name="VSeparator" type="VSeparator" parent="VBoxContainer/VSplitContainer/HBoxContainer"]
 margin_left = 852.0
 margin_right = 856.0
@@ -530,6 +472,7 @@ text = "START"
 script = SubResource( 13 )
 
 [node name="InitDialog" type="ConfirmationDialog" parent="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel"]
+visible = true
 margin_top = 79.0
 margin_right = 340.0
 margin_bottom = 279.0
@@ -605,10 +548,24 @@ margin_bottom = 24.0
 size_flags_horizontal = 3
 placeholder_text = "Width"
 
+[node name="WriteStats" type="Label" parent="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/InitDialog/GridContainer"]
+margin_top = 85.0
+margin_right = 160.0
+margin_bottom = 99.0
+hint_tooltip = "Master will write iteration statistic into CSV file "
+mouse_filter = 0
+text = "Write statistic"
+
+[node name="WriteStatsButton" type="CheckBox" parent="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/InitDialog/GridContainer"]
+margin_left = 164.0
+margin_top = 80.0
+margin_right = 324.0
+margin_bottom = 104.0
+
 [node name="HBoxContainer" type="HBoxContainer" parent="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel"]
-margin_top = 79.0
+margin_top = 283.0
 margin_right = 340.0
-margin_bottom = 129.0
+margin_bottom = 333.0
 
 [node name="Next" type="Button" parent="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/HBoxContainer"]
 margin_right = 168.0
@@ -639,12 +596,10 @@ virtual_keyboard_enabled = false
 caret_moving_by_right_click = false
 script = ExtResource( 4 )
 
-[connection signal="update_chart" from="." to="VBoxContainer/VSplitContainer/HBoxContainer/Tabs/Charts/PopulationChart" method="_on_update_chart"]
 [connection signal="pressed" from="VBoxContainer/Toolbar/Connect" to="VBoxContainer/Toolbar/Connect" method="_on_Connect_pressed"]
 [connection signal="connect_command" from="VBoxContainer/Toolbar/ConnectDialog/VBoxContainer/Confirm" to="." method="_on_connect_command"]
 [connection signal="pressed" from="VBoxContainer/Toolbar/ConnectDialog/VBoxContainer/Confirm" to="VBoxContainer/Toolbar/ConnectDialog/VBoxContainer/Confirm" method="_on_Confirm_pressed"]
 [connection signal="pressed" from="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/Start" to="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/Start" method="_on_Start_pressed"]
 [connection signal="confirmed" from="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/InitDialog" to="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/InitDialog" method="_on_confirmed"]
 [connection signal="pressed" from="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/HBoxContainer/Next" to="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/HBoxContainer/Next" method="_on_Next_pressed"]
-[connection signal="clear_chart" from="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/HBoxContainer/Reset" to="VBoxContainer/VSplitContainer/HBoxContainer/Tabs/Charts/PopulationChart" method="_on_clear_chart"]
 [connection signal="pressed" from="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/HBoxContainer/Reset" to="VBoxContainer/VSplitContainer/HBoxContainer/ControlPanel/HBoxContainer/Reset" method="_on_Reset_pressed"]

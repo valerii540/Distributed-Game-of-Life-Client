@@ -1,7 +1,5 @@
 extends Node
 
-signal update_chart(iteration, population)
-
 const STATUS_ROUTE = "/cluster/status"
 
 var _http_client  = HTTPRequest.new()
@@ -62,7 +60,6 @@ func _on_cluster_status_received(result, response_code, headers, body):
                 _iteration.set_iteration(iteration)
                 _population.set_population(population)
                 _mode.set_mode(mode)
-                emit_signal("update_chart", iteration, population)
                 if cluster_hash != _cluster_hash:
                     var workers = json["workers"]
                     for worker in workers:
